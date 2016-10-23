@@ -121,6 +121,8 @@ module.exports = function (context, myTimer) {
     }
     context.log('Node.js timer trigger function ran!', timeStamp);   
 
+    var lon = process.env.LONGITUDE;
+    var lat = process.env.LATITUDE;
     get_yahoo_weather_data(lon, lat).then(data => {
 	return get_rainfall_data(data);
     }).then(data => {
