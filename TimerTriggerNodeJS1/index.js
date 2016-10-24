@@ -29,12 +29,12 @@ function get_yahoo_weather_data(lon, lat) {
                 resolve(JSON.parse(body));
             });
         }).on('error', e => {
-            reject(e);
+            reject(new Error(e));
         });
     });
 }
 
-function get_rainfall_data(data) {
+function parse_weather_data(data) {
     return data.Feature[0].Property.WeatherList.Weather;
 }
 
@@ -58,26 +58,34 @@ function make_readable_date(date)
     return parseInt(date.slice(8, 10)) + ":" + date.slice(10, 12);
 }
 
-function make_line_rainfall_message(weather)
+function weather_data_to_message(data)
 {
-    return weather["Rainfall"] ? [
-        {
-            "type" : "text",
-            "text" : ["雨が降り始めました(" + weather["Rainfall"] + "mm/h)", "yjweather://Yahoo!天気を開く"].join("\n")
-        }
-    ] : [
-        {
-            "type" : "text",
-            "text" : "雨が止みました"
-        }
-    ];
+    if (get_rainfall_status(data) == 0) throw new Error("peacefull weather");
+
+    var weather = get_rainfall_last_result(data);
+    if (weather["Rainfall"]) {
+        return [
+            {
+                "type" : "text",
+                "text" : ["雨が降り始めました(" + weather["Rainfall"] + "mm/h)", "yjweather://Yahoo!天気を開く"].join("\n")
+            }
+        ];
+    }
+    else {
+        return [
+            {
+                "type" : "text",
+                "text" : "雨が止みました"
+            }
+        ];
+    }
 }
 
-function push_line(to, messages)
+function push_line(messages)
 {
     return new Promise((resolve,reject) => {
         var post_data = JSON.stringify({
-            "to" : to,
+            "to" : process.env.LINE_PUSH_TO,
             "messages" : messages
         });
         
@@ -103,7 +111,7 @@ function push_line(to, messages)
                 resolve(body);
             })
             res.on('error', err => {
-                reject(err);
+                reject(new Error(err));
             })
         });
         
@@ -121,48 +129,43 @@ module.exports = function (context, myTimer) {
     }
     context.log('Node.js timer trigger function ran!', timeStamp);   
 
-    var lon = process.env.LONGITUDE;
-    var lat = process.env.LATITUDE;
-    get_yahoo_weather_data(lon, lat).then(data => {
-        return get_rainfall_data(data);
-    }).then(data => {
-        return get_rainfall_status(data) ? make_line_rainfall_message(get_rainfall_last_result(data)) : null;
-    }).then(messages => {
-        return (messages && messages.length) ? push_line(process.env.LINE_PUSH_TO, messages) : null;
-    }).then(result => {
-        context.log(result);
-        context.done();
-    }).catch(err => {
-        context.log(err);
-        context.done();
-    });
+    const lon = process.env.LONGITUDE;
+    const lat = process.env.LATITUDE;
+
+    get_yahoo_weather_data(lon, lat)
+        .then(parse_weather_data)
+        .then(weather_data_to_message)
+        .then(push_line)
+        .then(result => {
+            context.log(result);
+            context.done();
+        }).catch(err => {
+            context.log(err.message);
+            context.done();
+        });
 };
 
 if (require.main === module) {
 
     var lon = "139.753945";
     var lat = "35.683801";
-
     var context = {
         log : console.log,
         done: () => {}
     };
-    
-    get_yahoo_weather_data(lon, lat).then(data => {
-        return get_rainfall_data(data);
-    }).then(data => {
-//      return get_rainfall_status(data) ? make_line_rainfall_message(get_rainfall_last_result(data)) : null;
-        return make_line_rainfall_message(get_rainfall_last_result(make_dummy_rainfall_data(0, 1.23)));
-//      return make_line_rainfall_message(get_rainfall_last_result(make_dummy_rainfall_data(1, 0)));
-    }).then(messages => {
-        return (messages && messages.length) ? push_line(process.env.LINE_PUSH_TO, messages) : null;
-    }).then(result => {
-        context.log(result);
-        context.done();
-    }).catch(err => {
-        context.log(err);
-        context.done();
-    });
+    get_yahoo_weather_data(lon, lat)
+        .then(parse_weather_data)
+//      .then(_test_rainfall)
+//      .then(_test_clearsky)
+        .then(weather_data_to_message)
+        .then(push_line)
+        .then(result => {
+            context.log(result);
+            context.done();
+        }).catch(err => {
+            context.log(err.message);
+            context.done();
+        });
 
     context.log(0 == get_rainfall_status(make_dummy_rainfall_data(0, 0)));
     context.log(1 == get_rainfall_status(make_dummy_rainfall_data(0, 1)));
@@ -171,7 +174,17 @@ if (require.main === module) {
     context.log(0 == get_rainfall_status(make_dummy_rainfall_data(2, 1)));
 
 }
-    
+
+function _test_rainfall(data)
+{
+    return Promise.resolve(make_dummy_rainfall_data(0, 1.23));
+}
+
+function _test_clearsky(data)
+{
+    return Promise.resolve(make_dummy_rainfall_data(1, 0));
+}
+
 function make_dummy_rainfall_data(a, b)
 {
     return [
