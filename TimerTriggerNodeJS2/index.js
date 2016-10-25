@@ -74,21 +74,28 @@ function is_rainfall_now(data)
 
 function will_start_rainfall(data)
 {
-    var forecast = data.filter(w => w["Type"] == "forecast" );
-    for (var i = 1; i < 7; i++) {
-        if (forecast[i]["Rainfall"]) return forecast[i];
-    }
-    return null;
+    var count = 0;
+    var rainfall_event = null;
+    data.filter(w => w["Type"] == "forecast").forEach(weather => {
+        if (weather["Rainfall"]) {
+            count+=1;
+            if (count == 1) rainfall_event = weather;
+        }
+    });
+    return count >= 3 ? rainfall_event : null;
 }
 
 function will_stop_rainfall(data)
 {
-    var forecast = data.filter(w => w["Type"] == "forecast" );
-    var rain_stop = null;
-    for (var i = 6; i > 0; i--) {
-        if (forecast[i]["Rainfall"] == 0) rain_stop = forecast[i];
-    }
-    return rain_stop;
+    var count = 0;
+    var rainfall_event = null;
+    data.filter(w => w["Type"] == "forecast").forEach(weather => {
+        if (weather["Rainfall"] == 0) {
+            count+=1;
+            if (!rainfall_event) rainfall_event = weather;
+        }
+    });
+    return count >= 4 ? rainfall_event : null;
 }
 
 function push_line(messages)
@@ -157,18 +164,37 @@ module.exports = function (context, myTimer) {
 
 if (require.main === module) {
 
-    var lon = "139.753945";
-    var lat = "35.683801";
-
     var context = {
         log : console.log,
         done: () => {}
     };
     
+    var lon = "139.753945";
+    var lat = "35.683801";
     get_yahoo_weather_data(lon, lat)
         .then(get_rainfall_data)
-        .then(_test_rainfall)
-        .then(_test_clearsky)
+        .then(weather_forecast_to_message)
+        .then(push_line)
+        .then(result => {
+            context.log(result);
+            context.done();
+        }).catch(err => {
+            context.log(err.message);
+            context.done();
+        });
+    
+    _test_rainfall()
+        .then(weather_forecast_to_message)
+        .then(push_line)
+        .then(result => {
+            context.log(result);
+            context.done();
+        }).catch(err => {
+            context.log(err.message);
+            context.done();
+        });
+    
+    _test_clearsky()
         .then(weather_forecast_to_message)
         .then(push_line)
         .then(result => {
