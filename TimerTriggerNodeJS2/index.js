@@ -45,8 +45,6 @@ function make_readable_date(date)
 
 function make_line_rainfall_forecast_message(weather, data)
 {
-    if (!weather) throw new Error("peacefull weather");
-    
     return weather["Rainfall"] ? [
         {
             "type" : "text",
@@ -62,12 +60,15 @@ function make_line_rainfall_forecast_message(weather, data)
 
 function weather_forecast_to_message(data)
 {
-    var weather = is_rainfall_now(data) ? will_stop_rainfall(data) : will_start_rainfall(data);
-    return make_line_rainfall_forecast_message(weather, data);
+    return new Promise((resolve,reject) => {
+        var weather = is_rainfall_now(data) ? will_stop_rainfall(data) : will_start_rainfall(data);
+        if (!weather) reject(new Error("nothing changed"));
+        resolve(make_line_rainfall_forecast_message(weather, data));
+    });
 }
     
 function is_rainfall_now(data)
-    {
+{
     var observation = data.filter(w => w["Type"] == "observation" );
     return observation[observation.length - 1]["Rainfall"] != 0 ? true : false;
 }
@@ -75,21 +76,23 @@ function is_rainfall_now(data)
 function will_start_rainfall(data)
 {
     var count = 0;
+    var rainfall = 0;
     var rainfall_event = null;
-    data.filter(w => w["Type"] == "forecast").forEach(weather => {
+    data.filter((w,i) => w["Type"] == "forecast" && i < 7).forEach(weather => {
         if (weather["Rainfall"]) {
             count+=1;
+            rainfall+=weather["Rainfall"];
             if (count == 1) rainfall_event = weather;
         }
     });
-    return count >= 3 ? rainfall_event : null;
+    return (count >= 3 || rainfall >= 4) ? rainfall_event : null;
 }
 
 function will_stop_rainfall(data)
 {
     var count = 0;
     var rainfall_event = null;
-    data.filter(w => w["Type"] == "forecast").forEach(weather => {
+    data.filter((w,i) => w["Type"] == "forecast" && i < 7).forEach(weather => {
         if (weather["Rainfall"] == 0) {
             count+=1;
             if (!rainfall_event) rainfall_event = weather;
@@ -168,7 +171,6 @@ if (require.main === module) {
         log : console.log,
         done: () => {}
     };
-    
     var lon = "139.753945";
     var lat = "35.683801";
     get_yahoo_weather_data(lon, lat)
@@ -182,7 +184,7 @@ if (require.main === module) {
             context.log(err.message);
             context.done();
         });
-    
+/*
     _test_rainfall()
         .then(weather_forecast_to_message)
         .then(push_line)
@@ -204,7 +206,85 @@ if (require.main === module) {
             context.log(err.message);
             context.done();
         });
-    
+*/
+    // clear sky
+    weather_forecast_to_message([
+        { Type: 'observation', Date: '201610240100', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240105', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+    ]).then(res => console.log(res)).catch(err => console.log(err.message));
+
+    // clear sky(not enought rainfall)
+    weather_forecast_to_message([
+        { Type: 'observation', Date: '201610240100', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240105', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+    ]).then(res => console.log(res)).catch(err => console.log(err.message));
+
+    // rainfall(by count)
+    weather_forecast_to_message([
+        { Type: 'observation', Date: '201610240100', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240105', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+    ]).then(res => console.log(res)).catch(err => console.log(err.message));
+
+    // rainfall(by amount)
+    weather_forecast_to_message([
+        { Type: 'observation', Date: '201610240100', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240105', Rainfall: 5 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+    ]).then(res => console.log(res)).catch(err => console.log(err.message));
+
+    // going to clear sky
+    weather_forecast_to_message([
+        { Type: 'observation', Date: '201610240100', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240105', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+    ]).then(res => console.log(res)).catch(err => console.log(err.message));
+
+    // not clear sky
+    weather_forecast_to_message([
+        { Type: 'observation', Date: '201610240100', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240105', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240110', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240120', Rainfall: 1 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240115', Rainfall: 0 },
+    ]).then(res => console.log(res)).catch(err => console.log(err.message));
+
+/*
     context.log(is_rainfall_now(make_dummy_rainfall_data(0, 0)) == false);
     context.log(is_rainfall_now(make_dummy_rainfall_data(1, 0)) == true);
 
@@ -219,11 +299,12 @@ if (require.main === module) {
 
     var rain_fall = will_stop_rainfall(make_dummy_rainfall_data(1, 0));
     context.log(make_line_rainfall_forecast_message(rain_fall));
+*/
 }
 
 function _test_rainfall(data)
 {
-    return Promise.resolve(make_dummy_rainfall_data(0, 1.23));
+    return Promise.resolve(make_dummy_rainfall_data(0, 1.5));
 }
 
 function _test_clearsky(data)
@@ -250,14 +331,14 @@ function make_dummy_rainfall_data(a, b)
         { Type: 'forecast', Date: '201610240105', Rainfall: b },
         { Type: 'forecast', Date: '201610240110', Rainfall: b },
         { Type: 'forecast', Date: '201610240115', Rainfall: b },
-        { Type: 'forecast', Date: '201610240120', Rainfall: b },
-        { Type: 'forecast', Date: '201610240125', Rainfall: b },
-        { Type: 'forecast', Date: '201610240130', Rainfall: b },
-        { Type: 'forecast', Date: '201610240135', Rainfall: b },
-        { Type: 'forecast', Date: '201610240140', Rainfall: b },
-        { Type: 'forecast', Date: '201610240145', Rainfall: b },
-        { Type: 'forecast', Date: '201610240150', Rainfall: b },
-        { Type: 'forecast', Date: '201610240155', Rainfall: b },
-        { Type: 'forecast', Date: '201610240200', Rainfall: b }
+        { Type: 'forecast', Date: '201610240120', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240125', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240130', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240135', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240140', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240145', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240150', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240155', Rainfall: 0 },
+        { Type: 'forecast', Date: '201610240200', Rainfall: 0 }
     ];
 }
