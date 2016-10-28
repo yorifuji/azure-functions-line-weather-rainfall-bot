@@ -85,7 +85,7 @@ function will_start_rainfall(data)
             if (count == 1) rainfall_event = weather;
         }
     });
-    return (count >= 3 || rainfall >= 4) ? rainfall_event : null;
+    return (count >= 3 || rainfall >= 1) ? rainfall_event : null;
 }
 
 function will_stop_rainfall(data)
