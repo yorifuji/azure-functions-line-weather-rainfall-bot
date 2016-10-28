@@ -147,16 +147,37 @@ module.exports = function (context, myTimer) {
 
 if (require.main === module) {
 
-    var lon = "139.753945";
-    var lat = "35.683801";
+    var lon = process.env.lon ? process.env.lon : "139.753945";
+    var lat = process.env.lat ? process.env.lat : "35.683801";
     var context = {
         log : console.log,
         done: () => {}
     };
     get_yahoo_weather_data(lon, lat)
         .then(parse_weather_data)
-//      .then(_test_rainfall)
-//      .then(_test_clearsky)
+	.then(data => {
+	    return data.map(d => {
+		d.Type = d.Type == "observation" ? "実測" : "予想";
+		d.Date = make_readable_date(d.Date);
+		return d;
+	    });
+	})
+	.then(data => {
+	    console.log(data);
+	});
+
+    _test_rainfall()
+        .then(weather_data_to_message)
+        .then(push_line)
+        .then(result => {
+            context.log(result);
+            context.done();
+        }).catch(err => {
+            context.log(err.message);
+            context.done();
+        });
+
+    _test_clearsky()
         .then(weather_data_to_message)
         .then(push_line)
         .then(result => {
