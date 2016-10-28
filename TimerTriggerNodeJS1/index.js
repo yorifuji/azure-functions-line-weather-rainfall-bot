@@ -1,85 +1,8 @@
 
-var http = require("http");
 var https = require("https");
-var querystring = require("querystring");
 var url = require("url");
 
-function make_url(lon, lat)
-{
-    var yahoo_weather_api_url = "http://weather.olp.yahooapis.jp/v1/place?"
-    var params = {
-        "output"      : "json",
-        "past"        : "1",
-        "interval"    : "5",
-        "coordinates" : lon + "," + lat,
-        "appid"       : process.env.YAHOO_APP_ID
-    };
-    return yahoo_weather_api_url + querystring.stringify(params);
-}
-
-
-function get_yahoo_weather_data(lon, lat) {
-    return new Promise((resolve, reject) => {
-        http.get(make_url(lon, lat), res => {
-            var body = '';
-            res.on('data', chunk => {
-                body += chunk;
-            });
-            res.on('end', () => {
-                resolve(JSON.parse(body));
-            });
-        }).on('error', e => {
-            reject(new Error(e));
-        });
-    });
-}
-
-function parse_weather_data(data) {
-    return data.Feature[0].Property.WeatherList.Weather;
-}
-
-// 0: nothing changed, 1: going to rainfall, 2: stop rainfall
-function get_rainfall_status(w) {
-    var w_o = w.filter(e => e["Type"] == "observation");
-    var w_c = w.filter(e => e["Type"] == "forecast"   );
-    var w_prev1 = w_o[w_o.length - 1];
-    var w_prev2 = w_o[w_o.length - 2];
-    return w_prev2["Rainfall"] == 0 && w_prev1["Rainfall"] ? 1 : 
-        w_prev2["Rainfall"] && w_prev1["Rainfall"] == 0 ? 2 : 0;
-}
-
-function get_rainfall_last_result(data) {
-    var w = data.filter(w => w["Type"] == "observation");
-    return w[w.length - 1];
-}
-
-function make_readable_date(date)
-{
-    return parseInt(date.slice(8, 10)) + ":" + date.slice(10, 12);
-}
-
-function weather_data_to_message(data)
-{
-    if (get_rainfall_status(data) == 0) throw new Error("peacefull weather");
-
-    var weather = get_rainfall_last_result(data);
-    if (weather["Rainfall"]) {
-        return [
-            {
-                "type" : "text",
-                "text" : ["雨が降り始めました(" + weather["Rainfall"] + "mm/h)", "yjweather://Yahoo!天気を開く"].join("\n")
-            }
-        ];
-    }
-    else {
-        return [
-            {
-                "type" : "text",
-                "text" : "雨が止みました"
-            }
-        ];
-    }
-}
+var yr = require("./yahoo_rainfall.js");
 
 function push_line(messages)
 {
@@ -119,7 +42,25 @@ function push_line(messages)
         post_req.end();
     });
 }
-                       
+
+function main(context) {
+    const api_key = process.env.YAHOO_APP_ID;
+    const lon = process.env.LONGITUDE;
+    const lat = process.env.LATITUDE;
+
+    yr.get_weather_data(api_key, lon, lat)
+        .then(yr.get_rainfall_data)
+        .then(yr.make_rainfall_message)
+        .then(push_line)
+        .then(result => {
+            context.log(result);
+            context.done();
+        }).catch(err => {
+            context.log(err.message);
+            context.done();
+        });
+}
+
 module.exports = function (context, myTimer) {
     var timeStamp = new Date().toISOString();
     
@@ -129,95 +70,24 @@ module.exports = function (context, myTimer) {
     }
     context.log('Node.js timer trigger function ran!', timeStamp);   
 
-    const lon = process.env.LONGITUDE;
-    const lat = process.env.LATITUDE;
-
-    get_yahoo_weather_data(lon, lat)
-        .then(parse_weather_data)
-        .then(weather_data_to_message)
-        .then(push_line)
-        .then(result => {
-            context.log(result);
-            context.done();
-        }).catch(err => {
-            context.log(err.message);
-            context.done();
-        });
+    main(context);
 };
 
 if (require.main === module) {
 
-    var lon = process.env.lon ? process.env.lon : "139.753945";
-    var lat = process.env.lat ? process.env.lat : "35.683801";
+    const api_key = process.env.YAHOO_APP_ID;
+    const lon = process.env.lon ? process.env.lon : "139.753945";
+    const lat = process.env.lat ? process.env.lat : "35.683801";
+    
     var context = {
         log : console.log,
         done: () => {}
     };
-    get_yahoo_weather_data(lon, lat)
-        .then(parse_weather_data)
-	.then(data => {
-	    return data.map(d => {
-		d.Type = d.Type == "observation" ? "実測" : "予想";
-		d.Date = make_readable_date(d.Date);
-		return d;
-	    });
-	})
-	.then(data => {
-	    console.log(data);
-	});
 
-    _test_rainfall()
-        .then(weather_data_to_message)
-        .then(push_line)
-        .then(result => {
-            context.log(result);
-            context.done();
-        }).catch(err => {
-            context.log(err.message);
-            context.done();
-        });
-
-    _test_clearsky()
-        .then(weather_data_to_message)
-        .then(push_line)
-        .then(result => {
-            context.log(result);
-            context.done();
-        }).catch(err => {
-            context.log(err.message);
-            context.done();
-        });
-
-    context.log(0 == get_rainfall_status(make_dummy_rainfall_data(0, 0)));
-    context.log(1 == get_rainfall_status(make_dummy_rainfall_data(0, 1)));
-    context.log(2 == get_rainfall_status(make_dummy_rainfall_data(1, 0)));
-    context.log(0 == get_rainfall_status(make_dummy_rainfall_data(1, 2)));
-    context.log(0 == get_rainfall_status(make_dummy_rainfall_data(2, 1)));
-
-}
-
-function _test_rainfall(data)
-{
-    return Promise.resolve(make_dummy_rainfall_data(0, 1.23));
-}
-
-function _test_clearsky(data)
-{
-    return Promise.resolve(make_dummy_rainfall_data(1, 0));
-}
-
-function make_dummy_rainfall_data(a, b)
-{
-    return [
-        { Type: 'observation', Date: '201610090040', Rainfall: 0 },
-        { Type: 'observation', Date: '201610090045', Rainfall: 0 },
-        { Type: 'observation', Date: '201610090050', Rainfall: 0 },
-        { Type: 'observation', Date: '201610090055', Rainfall: a },
-        { Type: 'observation', Date: '201610090100', Rainfall: b },
-        { Type: 'forecast', Date: '201610090105', Rainfall: 0 },
-        { Type: 'forecast', Date: '201610090110', Rainfall: 0 },
-        { Type: 'forecast', Date: '201610090115', Rainfall: 0 },
-        { Type: 'forecast', Date: '201610090120', Rainfall: 0 },
-        { Type: 'forecast', Date: '201610090125', Rainfall: 0 }
-    ]
+    yr.get_weather_data(api_key, lon, lat)
+        .then(yr.get_rainfall_data)
+        .then(yr.make_rainfall_message)
+        .then(context.log)
+	.catch(context.log);
+	       
 }

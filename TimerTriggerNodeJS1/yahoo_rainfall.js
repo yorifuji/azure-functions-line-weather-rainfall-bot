@@ -98,32 +98,24 @@ if (require.main === module) {
 
     yr.get_weather_data(api_key, lon, lat)
         .then(yr.get_rainfall_data)
-        .then(data => {
-            return data.map(d => {
-                d.Type = d.Type == "observation" ? "実測" : "予想";
-                d.Date = _make_readable_date(d.Date);
-                return d;
-            });
-        })
-        .then(data => {
-            console.log(data);
-        });
+        .then(yr.make_rainfall_message)
+        .then(console.log);
 
     Promise.resolve(make_dummy_rainfall_data(0, 0))
         .then(yr.get_rainfall_status)
-        .then(status => console.log(status));
+        .then(console.log);
     _test_rainfall()
         .then(yr.get_rainfall_status)
-        .then(status => console.log(status));
+        .then(console.log);
     _test_rainfall()
         .then(yr.make_rainfall_message)
-        .then(message => console.log(message));
+        .then(console.log);
     _test_clearsky()
         .then(yr.get_rainfall_status)
-        .then(status => console.log(status));
+        .then(console.log);
     _test_clearsky()
         .then(yr.make_rainfall_message)
-        .then(message => console.log(message));
+        .then(console.log);
 
 /*
     context.log(0 == get_rainfall_status(make_dummy_rainfall_data(0, 0)));
