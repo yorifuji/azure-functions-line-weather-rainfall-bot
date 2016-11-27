@@ -74,6 +74,9 @@ function _make_readable_date(date)
     return parseInt(date.slice(8, 10)) + ":" + date.slice(10, 12);
 }
 
+/*
+  exports
+*/
 var yahoo_rainfall = function() {
 }
 yahoo_rainfall.get_weather_data      = _get_weather_data;
@@ -82,6 +85,10 @@ yahoo_rainfall.get_rainfall_status   = _get_rainfall_status;
 yahoo_rainfall.make_rainfall_message = _make_rainfall_message;
 
 module.exports = yahoo_rainfall;
+
+/*
+  test code
+*/
 
 if (require.main === module) {
 
