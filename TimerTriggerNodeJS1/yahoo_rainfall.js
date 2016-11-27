@@ -46,7 +46,7 @@ function _get_rainfall_status(data) {
 
 function _make_rainfall_message(data)
 {
-    if (_get_rainfall_status(data) == 0) throw new Error("peacefull weather");
+    if (_get_rainfall_status(data) == 0) return [];
 
     var weather = data.filter(data => data["Type"] == "observation");
     weather = weather[weather.length - 1];
@@ -99,31 +99,29 @@ if (require.main === module) {
     yr.get_weather_data(api_key, lon, lat)
         .then(yr.get_rainfall_data)
         .then(yr.make_rainfall_message)
-        .then(console.log);
+        .then(console.log)
+        .catch(console.log);
 
     Promise.resolve(make_dummy_rainfall_data(0, 0))
         .then(yr.get_rainfall_status)
-        .then(console.log);
+        .then(console.log)
+        .catch(console.log);
     _test_rainfall()
         .then(yr.get_rainfall_status)
-        .then(console.log);
+        .then(console.log)
+        .catch(console.log);
     _test_rainfall()
         .then(yr.make_rainfall_message)
-        .then(console.log);
+        .then(console.log)
+        .catch(console.log);
     _test_clearsky()
         .then(yr.get_rainfall_status)
-        .then(console.log);
+        .then(console.log)
+        .catch(console.log);
     _test_clearsky()
         .then(yr.make_rainfall_message)
-        .then(console.log);
-
-/*
-    context.log(0 == get_rainfall_status(make_dummy_rainfall_data(0, 0)));
-    context.log(1 == get_rainfall_status(make_dummy_rainfall_data(0, 1)));
-    context.log(2 == get_rainfall_status(make_dummy_rainfall_data(1, 0)));
-    context.log(0 == get_rainfall_status(make_dummy_rainfall_data(1, 2)));
-    context.log(0 == get_rainfall_status(make_dummy_rainfall_data(2, 1)));
-*/
+        .then(console.log)
+        .catch(console.log);
 }
 
 function _test_rainfall(data)

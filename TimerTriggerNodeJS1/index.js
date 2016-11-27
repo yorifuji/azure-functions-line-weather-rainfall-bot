@@ -6,6 +6,8 @@ var yr = require("./yahoo_rainfall.js");
 
 function push_line(messages)
 {
+    if (!messages.length) return Promise.resolve();
+
     return new Promise((resolve,reject) => {
         var post_data = JSON.stringify({
             "to" : process.env.LINE_PUSH_TO,
